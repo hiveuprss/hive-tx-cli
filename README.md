@@ -27,7 +27,7 @@ npm install -g @peakd/hive-tx-cli
 ```bash
 # Clone or download the project
 git clone <repository-url>
-cd hive-cli
+cd hive-tx-cli
 
 # Install dependencies
 pnpm install

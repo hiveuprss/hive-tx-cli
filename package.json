@@ -1,6 +1,6 @@
 {
   "name": "@peakd/hive-tx-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A CLI wrapper for the Hive blockchain API using hive-tx",
   "license": "MIT",
   "main": "dist/index.js",

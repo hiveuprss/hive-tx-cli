@@ -1,6 +1,5 @@
 node_modules/
 dist/
-bin/
 *.log
 *-debug.log*
 *-error.log*
