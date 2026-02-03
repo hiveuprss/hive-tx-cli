@@ -9,7 +9,7 @@ import type { HiveOperation } from '../types.js';
 async function getClient(): Promise<HiveClient> {
   const config = await getConfig();
   if (!config) {
-    console.error(chalk.red('Configuration not found. Run "hive config" first.'));
+    console.error(chalk.red('Configuration not found. Run "hive config" or set HIVE_ACCOUNT and key env vars.'));
     process.exit(1);
   }
   return new HiveClient(config);
@@ -30,7 +30,7 @@ const voteCmd = new Command('vote')
     const voter = getAccountName(config, options);
     
     if (!voter) {
-      console.error(chalk.red('Account not specified. Use --account or configure with "hive config"'));
+      console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'));
       process.exit(1);
     }
 
@@ -74,7 +74,7 @@ const commentCmd = new Command('comment')
     const author = getAccountName(config, options);
     
     if (!author) {
-      console.error(chalk.red('Account not specified. Use --account or configure with "hive config"'));
+      console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'));
       process.exit(1);
     }
 
@@ -120,7 +120,7 @@ const transferCmd = new Command('transfer')
     const from = getAccountName(config, options);
     
     if (!from) {
-      console.error(chalk.red('Account not specified. Use --account or configure with "hive config"'));
+      console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'));
       process.exit(1);
     }
 
@@ -176,7 +176,7 @@ const customJsonCmd = new Command('custom-json')
     const account = getAccountName(config, options);
     
     if (!account) {
-      console.error(chalk.red('Account not specified. Use --account or configure with "hive config"'));
+      console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'));
       process.exit(1);
     }
 

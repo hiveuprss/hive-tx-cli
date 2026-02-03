@@ -6,16 +6,61 @@ import type { Config } from './types.js';
 const CONFIG_DIR = join(homedir(), '.hive-cli');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
+function getEnvConfig(): Partial<Config> {
+  const envConfig: Partial<Config> = {};
+
+  if (process.env.HIVE_ACCOUNT) {
+    envConfig.account = process.env.HIVE_ACCOUNT;
+  }
+
+  if (process.env.HIVE_POSTING_KEY) {
+    envConfig.postingKey = process.env.HIVE_POSTING_KEY;
+  }
+
+  if (process.env.HIVE_ACTIVE_KEY) {
+    envConfig.activeKey = process.env.HIVE_ACTIVE_KEY;
+  }
+
+  return envConfig;
+}
+
 export async function getConfig(): Promise<Config | null> {
+  const envConfig = getEnvConfig();
+  let fileConfig: Config | null = null;
+
   try {
     if (!(await fs.pathExists(CONFIG_FILE))) {
-      return null;
+      if (!envConfig.account) {
+        return null;
+      }
+      return {
+        account: envConfig.account || '',
+        postingKey: envConfig.postingKey,
+        activeKey: envConfig.activeKey,
+      };
     }
     const config = await fs.readJson(CONFIG_FILE);
-    return config as Config;
+    fileConfig = config as Config;
   } catch {
-    return null;
+    if (!envConfig.account) {
+      return null;
+    }
+    return {
+      account: envConfig.account || '',
+      postingKey: envConfig.postingKey,
+      activeKey: envConfig.activeKey,
+    };
   }
+
+  const mergedConfig = {
+    ...(fileConfig || {}),
+    ...envConfig,
+  };
+
+  return {
+    ...mergedConfig,
+    account: mergedConfig.account || '',
+  } as Config;
 }
 
 export async function saveConfig(config: Config): Promise<void> {
@@ -30,5 +75,6 @@ export async function clearConfig(): Promise<void> {
 }
 
 export async function hasConfig(): Promise<boolean> {
-  return fs.pathExists(CONFIG_FILE);
+  const envConfig = getEnvConfig();
+  return Boolean(envConfig.account) || fs.pathExists(CONFIG_FILE);
 }

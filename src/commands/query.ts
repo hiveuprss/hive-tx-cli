@@ -1,16 +1,11 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import ora from 'ora';
 import { getConfig } from '../config.js';
 import { HiveClient } from '../hive-client.js';
 
 async function getClient(): Promise<HiveClient> {
   const config = await getConfig();
-  if (!config) {
-    console.error(chalk.red('Configuration not found. Run "hive config" first.'));
-    process.exit(1);
-  }
-  return new HiveClient(config);
+  return new HiveClient(config || { account: '' });
 }
 
 const accountCmd = new Command('account')

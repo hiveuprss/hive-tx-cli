@@ -24,11 +24,12 @@ export class HiveClient {
     const key = keyType === 'active' ? this.config.activeKey : this.config.postingKey;
     
     if (!key) {
-      throw new Error(`${keyType} key is not configured. Run 'hive config' to set up your keys.`);
+      const envVar = keyType === 'active' ? 'HIVE_ACTIVE_KEY' : 'HIVE_POSTING_KEY';
+      throw new Error(`${keyType} key is not configured. Run 'hive config' or set ${envVar}.`);
     }
 
     if (!this.config.account) {
-      throw new Error('Account is not configured. Run "hive config" to set up your account.');
+      throw new Error('Account is not configured. Run "hive config" or set HIVE_ACCOUNT.');
     }
 
     const privateKey = (PrivateKey as any).fromString(key);
