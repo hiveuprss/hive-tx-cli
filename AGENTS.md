@@ -96,7 +96,7 @@ Use this guide when making changes or adding commands.
 
 ## Configuration handling
 
-- Config file: `~/.hive-cli/config.json` with mode 600.
+- Config file: `~/.hive-tx-cli/config.json` with mode 600.
 - Use `getConfig`, `saveConfig`, `clearConfig` from `src/config.ts`.
 - Do not commit or print private keys; highlight security if touching config.
 

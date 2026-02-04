@@ -7,7 +7,7 @@ A command-line interface wrapper for the Hive blockchain API using [hive-tx](htt
 - **Query Operations**: Get account info, blocks, posts, and make raw API calls
 - **Broadcast Operations**: Vote, comment, transfer, and broadcast custom JSON
 - **Image Uploads**: Upload images to Hive ImageHoster
-- **Secure Configuration**: Store account credentials safely in `~/.hive-cli/config.json` (permissions 600)
+- **Secure Configuration**: Store account credentials safely in `~/.hive-tx-cli/config.json` (permissions 600)
 - **Interactive Setup**: Easy configuration with prompts
 - **Node.js 22**: Built for modern Node.js with TypeScript
 
@@ -149,7 +149,7 @@ hive --account myaccount vote --author author --permlink permlink --weight 100
 
 ## Configuration File
 
-Configuration is stored in `~/.hive-cli/config.json` with 600 permissions (read/write only for owner):
+Configuration is stored in `~/.hive-tx-cli/config.json` with 600 permissions (read/write only for owner):
 
 ```json
 {
