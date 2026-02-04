@@ -109,6 +109,9 @@ hive vote --author <author> --permlink <permlink> --weight 100
 # Create a post
 hive post --permlink my-post --title "My Post" --body "Content here" --tags "hive,blockchain"
 
+# Create a post with custom metadata
+hive post --permlink my-post --title "My Post" --body "Content here" --tags "hive,blockchain" --metadata '{"app":"hive-tx-cli/2026.1.1","format":"markdown"}'
+
 # Create a comment
 hive comment --permlink my-reply --body "Comment text" --parent-author <author> --parent-permlink <permlink>
 
