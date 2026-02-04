@@ -6,6 +6,7 @@ A command-line interface wrapper for the Hive blockchain API using [hive-tx](htt
 
 - **Query Operations**: Get account info, blocks, posts, and make raw API calls
 - **Broadcast Operations**: Vote, comment, transfer, and broadcast custom JSON
+- **Image Uploads**: Upload images to Hive ImageHoster
 - **Secure Configuration**: Store account credentials safely in `~/.hive-cli/config.json` (permissions 600)
 - **Interactive Setup**: Easy configuration with prompts
 - **Node.js 22**: Built for modern Node.js with TypeScript
@@ -120,6 +121,21 @@ hive custom-json --id <app-id> --json '{"key":"value"}'
 # Broadcast raw operations
 hive broadcast '["vote",{"voter":"me","author":"you","permlink":"post","weight":10000}]' --key-type posting
 ```
+
+### Image Upload
+
+```bash
+# Upload an image (requires posting key)
+hive upload --file ./path/to/image.jpg
+
+# Use a different ImageHoster
+hive upload --file ./image.png --host https://images.ecency.com
+
+# Specify account for this command
+hive upload --file ./image.jpg --account myaccount
+```
+
+The command returns JSON with the uploaded image URL.
 
 ## Global Options
 
