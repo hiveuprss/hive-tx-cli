@@ -67,6 +67,7 @@ const commentCmd = new Command('publish')
   .option('--parent-author <name>', 'Parent author (for comments)', '')
   .option('--parent-permlink <string>', 'Parent permlink (for comments)', '')
   .option('--tags <tags>', 'Comma-separated tags', '')
+  .option('--metadata <json>', 'Additional JSON metadata to merge', '{}')
   .option('--account <name>', 'Author account name (defaults to configured account)')
   .action(async (options) => {
     const config = await getConfig()
@@ -77,7 +78,28 @@ const commentCmd = new Command('publish')
       process.exit(1)
     }
 
-    const jsonMetadata = options.tags ? JSON.stringify({ tags: options.tags.split(',').map((t: string) => t.trim()) }) : ''
+    // Parse user-provided metadata (default to empty object)
+    let userMetadata: Record<string, unknown> = {}
+    if (options.metadata && options.metadata !== '{}') {
+      try {
+        userMetadata = JSON.parse(options.metadata)
+      } catch (error) {
+        console.error(chalk.red('Invalid JSON in metadata option'))
+        process.exit(1)
+      }
+    }
+
+    // Build metadata with tags and merge user-provided metadata
+    const metadata: Record<string, unknown> = {
+      ...userMetadata
+    }
+
+    // Add tags if provided (tags takes precedence over any tags in metadata)
+    if (options.tags) {
+      metadata.tags = options.tags.split(',').map((t: string) => t.trim())
+    }
+
+    const jsonMetadata = Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : ''
 
     const operations: HiveOperation[] = [
       {
