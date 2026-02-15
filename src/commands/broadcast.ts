@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import ora from 'ora'
 import inquirer from 'inquirer'
+import { readFileSync } from 'fs'
 import { getConfig } from '../config.js'
 import { HiveClient } from '../hive-client.js'
 import type { HiveOperation } from '../types.js'
@@ -62,8 +63,9 @@ const commentCmd = new Command('publish')
   .alias('post')
   .alias('comment')
   .requiredOption('-p, --permlink <string>', 'Permlink for the post/comment')
-  .requiredOption('-t, --title <string>', 'Title (for posts)')
-  .requiredOption('-b, --body <string>', 'Content body')
+  .option('-t, --title <string>', 'Title (for posts; defaults to "" for replies)', '')
+  .option('-b, --body <string>', 'Content body')
+  .option('--body-file <path>', 'Read content body from a file (avoids shell quoting issues)')
   .option('--parent-author <name>', 'Parent author (for comments)', '')
   .option('--parent-permlink <string>', 'Parent permlink (for comments)', '')
   .option('--tags <tags>', 'Comma-separated tags', '')
@@ -77,6 +79,22 @@ const commentCmd = new Command('publish')
 
     if (!author) {
       console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'))
+      process.exit(1)
+    }
+
+    // Resolve body from --body or --body-file
+    let body: string
+    if (options.bodyFile) {
+      try {
+        body = readFileSync(options.bodyFile, 'utf8')
+      } catch (error: any) {
+        console.error(chalk.red(`Could not read body file: ${error.message}`))
+        process.exit(1)
+      }
+    } else if (options.body) {
+      body = options.body
+    } else {
+      console.error(chalk.red('Either --body or --body-file is required'))
       process.exit(1)
     }
 
@@ -111,8 +129,8 @@ const commentCmd = new Command('publish')
           parent_permlink: options.parentPermlink || options.permlink,
           author,
           permlink: options.permlink,
-          title: options.title,
-          body: options.body,
+          title: options.title || '',
+          body,
           json_metadata: jsonMetadata
         }
       }

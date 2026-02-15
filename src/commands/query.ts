@@ -78,18 +78,50 @@ const callCmd = new Command('call')
   .argument('<api>', 'API name (e.g., database_api)')
   .argument('<method>', 'Method name')
   .argument('[params]', 'JSON parameters', '{}')
-  .action(async (api: string, method: string, params: string) => {
+  .option('--raw', 'Output full JSON-RPC envelope instead of unwrapping result')
+  .action(async (api: string, method: string, params: string, options) => {
     const spinner = ora(`Calling ${api}.${method}...`).start();
     try {
       const client = await getClient();
       const parsedParams = JSON.parse(params);
       const result = await client.call(api, method, Array.isArray(parsedParams) ? parsedParams : [parsedParams]);
       spinner.stop();
-      console.log(JSON.stringify(result, null, 2));
+      // By default unwrap the result field so piping to python/jq works without ['result']
+      const output = (!options.raw && result !== null && typeof result === 'object' && 'result' in result)
+        ? (result as any).result
+        : result;
+      console.log(JSON.stringify(output, null, 2));
     } catch (error: any) {
       spinner.fail(error.message);
       process.exit(1);
     }
   });
 
-export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd];
+const repliesCmd = new Command('replies')
+  .description('Get replies to a post or comment')
+  .argument('<author>', 'Author of the post/comment')
+  .argument('<permlink>', 'Permlink of the post/comment')
+  .action(async (author: string, permlink: string) => {
+    const spinner = ora('Fetching replies...').start();
+    try {
+      const client = await getClient();
+      const result = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
+      spinner.stop();
+      const replies = (result !== null && typeof result === 'object' && 'result' in result)
+        ? (result as any).result
+        : result;
+      if (!Array.isArray(replies) || replies.length === 0) {
+        console.log('No replies found.');
+        return;
+      }
+      for (const r of replies) {
+        const body = (r.body as string).replace(/\n/g, ' ').slice(0, 100);
+        console.log(`@${r.author} (rep ${r.author_reputation}) | ${body}`);
+      }
+    } catch (error: any) {
+      spinner.fail(error.message);
+      process.exit(1);
+    }
+  });
+
+export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd, repliesCmd];
