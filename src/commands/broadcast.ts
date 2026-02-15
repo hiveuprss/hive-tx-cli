@@ -6,7 +6,7 @@ import { readFileSync } from 'fs'
 import { getConfig } from '../config.js'
 import { HiveClient } from '../hive-client.js'
 import type { HiveOperation } from '../types.js'
-import { getAccountName } from '../utils.js'
+import { getAccountName, parseHiveUrl } from '../utils.js'
 
 async function getClient(): Promise<HiveClient> {
   const config = await getConfig()
@@ -19,10 +19,12 @@ async function getClient(): Promise<HiveClient> {
 
 const voteCmd = new Command('vote')
   .description('Vote on a post or comment')
-  .requiredOption('-a, --author <name>', 'Author of the content')
-  .requiredOption('-p, --permlink <string>', 'Permlink of the content')
+  .option('-a, --author <name>', 'Author of the content')
+  .option('-p, --permlink <string>', 'Permlink of the content')
+  .option('--url <url>', 'Post URL (PeakD, HiveBlog, Ecency…) — replaces --author and --permlink')
   .requiredOption('-w, --weight <number>', 'Vote weight (1-100)', '100')
   .option('--account <name>', 'Voter account name (defaults to configured account)')
+  .option('--wait', 'Wait for transaction confirmation before exiting')
   .action(async (options) => {
     const config = await getConfig()
     const voter = getAccountName(config, options)
@@ -32,24 +34,36 @@ const voteCmd = new Command('vote')
       process.exit(1)
     }
 
+    // Resolve author/permlink from --url or explicit flags
+    let author = options.author
+    let permlink = options.permlink
+    if (options.url) {
+      const parsed = parseHiveUrl(options.url)
+      if (!parsed) { console.error(chalk.red('Could not parse --url')); process.exit(1) }
+      author = parsed.author; permlink = parsed.permlink
+    }
+    if (!author || !permlink) {
+      console.error(chalk.red('Provide either --url or both --author and --permlink'))
+      process.exit(1)
+    }
+
     const weight = parseInt(options.weight) * 100 // Convert to basis points
 
     const operations: HiveOperation[] = [
       {
         type: 'vote',
-        value: {
-          voter,
-          author: options.author,
-          permlink: options.permlink,
-          weight
-        }
+        value: { voter, author, permlink, weight }
       }
     ]
 
     const spinner = ora('Broadcasting vote...').start()
     try {
       const client = await getClient()
-      const result = await client.broadcast(operations, 'posting')
+      const result: any = await client.broadcast(operations, 'posting')
+      if (options.wait) {
+        spinner.text = 'Waiting for confirmation...'
+        await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
+      }
       spinner.succeed('Vote broadcasted successfully')
       console.log(JSON.stringify(result, null, 2))
     } catch (error: any) {
@@ -68,11 +82,13 @@ const commentCmd = new Command('publish')
   .option('--body-file <path>', 'Read content body from a file (avoids shell quoting issues)')
   .option('--parent-author <name>', 'Parent author (for comments)', '')
   .option('--parent-permlink <string>', 'Parent permlink (for comments)', '')
+  .option('--parent-url <url>', 'Parent post/comment URL — replaces --parent-author and --parent-permlink')
   .option('--tags <tags>', 'Comma-separated tags', '')
   .option('--metadata <json>', 'Additional JSON metadata to merge', '{}')
   .option('--account <name>', 'Author account name (defaults to configured account)')
   .option('--burn-rewards', 'Burn all post rewards by routing them to the null account')
   .option('--beneficiaries <json>', 'JSON array of beneficiaries, e.g. \'[{"account":"null","weight":10000}]\' (weight is 0-10000 basis points)')
+  .option('--wait', 'Wait for transaction confirmation before exiting')
   .action(async (options) => {
     const config = await getConfig()
     const author = getAccountName(config, options)
@@ -80,6 +96,14 @@ const commentCmd = new Command('publish')
     if (!author) {
       console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'))
       process.exit(1)
+    }
+
+    // Resolve parent author/permlink from --parent-url or explicit flags
+    if (options.parentUrl) {
+      const parsed = parseHiveUrl(options.parentUrl)
+      if (!parsed) { console.error(chalk.red('Could not parse --parent-url')); process.exit(1) }
+      options.parentAuthor = parsed.author
+      options.parentPermlink = parsed.permlink
     }
 
     // Resolve body from --body or --body-file
@@ -175,7 +199,11 @@ const commentCmd = new Command('publish')
     const spinner = ora('Broadcasting comment...').start()
     try {
       const client = await getClient()
-      const result = await client.broadcast(operations, 'posting')
+      const result: any = await client.broadcast(operations, 'posting')
+      if (options.wait) {
+        spinner.text = 'Waiting for confirmation...'
+        await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
+      }
       spinner.succeed('Comment broadcasted successfully')
       console.log(JSON.stringify(result, null, 2))
     } catch (error: any) {
@@ -190,6 +218,7 @@ const transferCmd = new Command('transfer')
   .requiredOption('-a, --amount <string>', 'Amount (e.g., "1.000 HIVE")')
   .option('-m, --memo <string>', 'Transfer memo', '')
   .option('--account <name>', 'Sender account name (defaults to configured account)')
+  .option('--wait', 'Wait for transaction confirmation before exiting')
   .action(async (options) => {
     const config = await getConfig()
     const from = getAccountName(config, options)
@@ -230,7 +259,11 @@ const transferCmd = new Command('transfer')
     const spinner = ora('Broadcasting transfer...').start()
     try {
       const client = await getClient()
-      const result = await client.broadcast(operations, 'active')
+      const result: any = await client.broadcast(operations, 'active')
+      if (options.wait) {
+        spinner.text = 'Waiting for confirmation...'
+        await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
+      }
       spinner.succeed('Transfer broadcasted successfully')
       console.log(JSON.stringify(result, null, 2))
     } catch (error: any) {
@@ -288,13 +321,18 @@ const broadcastCmd = new Command('broadcast')
   .description('Broadcast raw operations')
   .argument('<operations>', 'JSON array of operations')
   .option('-k, --key-type <type>', 'Key type (posting or active)', 'posting')
+  .option('--wait', 'Wait for transaction confirmation before exiting')
   .action(async (operations: string, options) => {
     const parsedOperations: HiveOperation[] = JSON.parse(operations)
 
     const spinner = ora('Broadcasting operations...').start()
     try {
       const client = await getClient()
-      const result = await client.broadcast(parsedOperations, options.keyType)
+      const result: any = await client.broadcast(parsedOperations, options.keyType)
+      if (options.wait) {
+        spinner.text = 'Waiting for confirmation...'
+        await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
+      }
       spinner.succeed('Operations broadcasted successfully')
       console.log(JSON.stringify(result, null, 2))
     } catch (error: any) {

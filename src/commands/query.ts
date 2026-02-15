@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import ora from 'ora';
 import { getConfig } from '../config.js';
 import { HiveClient } from '../hive-client.js';
+import { parseHiveUrl } from '../utils.js';
 
 async function getClient(): Promise<HiveClient> {
   const config = await getConfig();
@@ -57,14 +58,21 @@ const blockCmd = new Command('block')
   });
 
 const contentCmd = new Command('content')
-  .description('Get content (post/comment)')
-  .argument('<author>', 'Author username')
-  .argument('<permlink>', 'Permlink')
-  .action(async (author: string, permlink: string) => {
+  .description('Get content (post/comment). Accepts a URL or author + permlink.')
+  .argument('<author-or-url>', 'Author username, or a full Hive post URL (PeakD, HiveBlog, Ecency…)')
+  .argument('[permlink]', 'Permlink (omit when passing a URL)')
+  .action(async (authorOrUrl: string, permlink: string | undefined) => {
+    const parsed = parseHiveUrl(authorOrUrl);
+    const author = parsed ? parsed.author : authorOrUrl;
+    const perm   = parsed ? parsed.permlink : permlink;
+    if (!perm) {
+      console.error('Permlink required when not passing a URL');
+      process.exit(1);
+    }
     const spinner = ora('Fetching content...').start();
     try {
       const client = await getClient();
-      const result = await client.call('bridge', 'get_post', { author, permlink });
+      const result = await client.call('bridge', 'get_post', { author, permlink: perm });
       spinner.stop();
       console.log(JSON.stringify(result, null, 2));
     } catch (error: any) {
@@ -98,14 +106,21 @@ const callCmd = new Command('call')
   });
 
 const repliesCmd = new Command('replies')
-  .description('Get replies to a post or comment')
-  .argument('<author>', 'Author of the post/comment')
-  .argument('<permlink>', 'Permlink of the post/comment')
-  .action(async (author: string, permlink: string) => {
+  .description('Get replies to a post or comment. Accepts a URL or author + permlink.')
+  .argument('<author-or-url>', 'Author of the post/comment, or a full Hive post URL')
+  .argument('[permlink]', 'Permlink (omit when passing a URL)')
+  .action(async (authorOrUrl: string, permlink: string | undefined) => {
+    const parsed = parseHiveUrl(authorOrUrl);
+    const author = parsed ? parsed.author : authorOrUrl;
+    const perm   = parsed ? parsed.permlink : permlink;
+    if (!perm) {
+      console.error('Permlink required when not passing a URL');
+      process.exit(1);
+    }
     const spinner = ora('Fetching replies...').start();
     try {
       const client = await getClient();
-      const result = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
+      const result = await client.call('condenser_api', 'get_content_replies', [author, perm]);
       spinner.stop();
       const replies = (result !== null && typeof result === 'object' && 'result' in result)
         ? (result as any).result
@@ -124,4 +139,41 @@ const repliesCmd = new Command('replies')
     }
   });
 
-export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd, repliesCmd];
+const rcCmd = new Command('rc')
+  .description('Show Resource Credits (mana) for an account')
+  .argument('<name>', 'Account name')
+  .action(async (name: string) => {
+    const spinner = ora('Fetching RC...').start();
+    try {
+      const client = await getClient();
+      const result: any = await client.call('rc_api', 'find_rc_accounts', { accounts: [name] });
+      spinner.stop();
+
+      const rcAccounts = result?.result?.rc_accounts ?? result?.rc_accounts;
+      if (!rcAccounts?.length) {
+        console.error(`No RC data found for @${name}`);
+        process.exit(1);
+      }
+
+      const rc = rcAccounts[0];
+      const max = BigInt(rc.max_rc);
+      const stored = BigInt(rc.rc_manabar.current_mana);
+      const lastUpdate = rc.rc_manabar.last_update_time;
+      const elapsed = Math.floor(Date.now() / 1000) - lastUpdate;
+      const REGEN_SECS = 5 * 24 * 3600; // 5 days to full
+      const regenerated = max * BigInt(elapsed) / BigInt(REGEN_SECS);
+      const current = stored + regenerated > max ? max : stored + regenerated;
+      const percent = Number(current * 10000n / max) / 100;
+
+      const fmt = (n: bigint) => n.toLocaleString();
+      console.log(`@${name}`);
+      console.log(`RC: ${percent.toFixed(2)}% (${fmt(current)} / ${fmt(max)})`);
+      if (rc.delegated_rc !== '0')      console.log(`Delegated out:  ${fmt(BigInt(rc.delegated_rc))}`);
+      if (rc.received_delegated_rc !== '0') console.log(`Delegated in:   ${fmt(BigInt(rc.received_delegated_rc))}`);
+    } catch (error: any) {
+      spinner.fail(error.message);
+      process.exit(1);
+    }
+  });
+
+export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd, repliesCmd, rcCmd];

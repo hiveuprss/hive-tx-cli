@@ -20,6 +20,26 @@ export class HiveClient {
     return response;
   }
 
+  /**
+   * Poll until a transaction appears in a block or the timeout expires.
+   * Hive produces a block every ~3 seconds; allow up to 30s by default.
+   */
+  async waitForTransaction(txId: string, timeoutMs = 30_000): Promise<unknown> {
+    const pollInterval = 3_000;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      try {
+        const res: any = await this.call('condenser_api', 'get_transaction', [txId]);
+        const tx = res?.result ?? res;
+        if (tx?.block_num) return tx;
+      } catch {
+        // not confirmed yet — keep polling
+      }
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    throw new Error(`Transaction ${txId} not confirmed within ${timeoutMs / 1000}s`);
+  }
+
   async broadcast(operations: HiveOperation[], keyType: 'posting' | 'active' = 'posting'): Promise<unknown> {
     const key = keyType === 'active' ? this.config.activeKey : this.config.postingKey;
     

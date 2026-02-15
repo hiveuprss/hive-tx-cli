@@ -29,3 +29,25 @@ export const packageJson = JSON.parse(
 export function getAccountName(config: any, options: any): string {
   return options.account || config?.account || process.env.HIVE_ACCOUNT;
 }
+
+/**
+ * Parse a Hive post/comment URL into { author, permlink }.
+ * Supports PeakD, HiveBlog, Ecency, and any URL with /@author/permlink in the path.
+ * Returns null if the input is not a recognisable URL.
+ *
+ * Examples:
+ *   https://peakd.com/introduceyourself/@alice/my-post  → { author: 'alice', permlink: 'my-post' }
+ *   https://hive.blog/hive-174578/@alice/my-post        → { author: 'alice', permlink: 'my-post' }
+ *   https://ecency.com/hive-174578/@alice/my-post       → { author: 'alice', permlink: 'my-post' }
+ */
+export function parseHiveUrl(input: string): { author: string; permlink: string } | null {
+  if (!input.startsWith('http')) return null;
+  try {
+    const url = new URL(input);
+    const match = url.pathname.match(/\/@([a-z0-9._-]+)\/([a-z0-9-]+)/);
+    if (match) return { author: match[1]!, permlink: match[2]! };
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
