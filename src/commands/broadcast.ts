@@ -69,6 +69,8 @@ const commentCmd = new Command('publish')
   .option('--tags <tags>', 'Comma-separated tags', '')
   .option('--metadata <json>', 'Additional JSON metadata to merge', '{}')
   .option('--account <name>', 'Author account name (defaults to configured account)')
+  .option('--burn-rewards', 'Burn all post rewards by routing them to the null account')
+  .option('--beneficiaries <json>', 'JSON array of beneficiaries, e.g. \'[{"account":"null","weight":10000}]\' (weight is 0-10000 basis points)')
   .action(async (options) => {
     const config = await getConfig()
     const author = getAccountName(config, options)
@@ -115,6 +117,42 @@ const commentCmd = new Command('publish')
         }
       }
     ]
+
+    // Build comment_options if burn-rewards or beneficiaries are requested.
+    // Must be in the same transaction as the comment op.
+    if (options.burnRewards || options.beneficiaries) {
+      let beneficiaries: Array<{ account: string; weight: number }>
+
+      if (options.burnRewards) {
+        beneficiaries = [{ account: 'null', weight: 10000 }]
+      } else {
+        try {
+          beneficiaries = JSON.parse(options.beneficiaries)
+        } catch (error) {
+          console.error(chalk.red('Invalid JSON in --beneficiaries option'))
+          process.exit(1)
+        }
+
+        const totalWeight = beneficiaries.reduce((sum, b) => sum + b.weight, 0)
+        if (totalWeight > 10000) {
+          console.error(chalk.red(`Total beneficiary weight ${totalWeight} exceeds 10000 (100%)`))
+          process.exit(1)
+        }
+      }
+
+      operations.push({
+        type: 'comment_options',
+        value: {
+          author,
+          permlink: options.permlink,
+          max_accepted_payout: '1000000.000 HBD',
+          percent_hbd: 10000,
+          allow_votes: true,
+          allow_curation_rewards: true,
+          extensions: [[0, { beneficiaries }]]
+        }
+      })
+    }
 
     const spinner = ora('Broadcasting comment...').start()
     try {
