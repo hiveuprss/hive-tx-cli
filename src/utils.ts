@@ -57,12 +57,14 @@ export function isJsonMode(): boolean {
 
 export function createSpinner(text: string) {
   if (isJsonMode()) {
-    return {
-      start: () => ({ succeed: () => {}, fail: () => {}, stop: () => {} }),
+    const noop = {
+      text: '',
+      start: () => noop,
       succeed: () => {},
       fail: () => {},
       stop: () => {}
     };
+    return noop;
   }
   return ora(text);
 }

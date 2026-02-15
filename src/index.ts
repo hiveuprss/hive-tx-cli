@@ -4,10 +4,6 @@ import chalk from 'chalk';
 import { getConfig } from './config.js';
 import { configCommand } from './commands/config.js';
 import { queryCommands } from './commands/query.js';
-import { publishCommands } from './commands/publish.js';
-import { socialCommands } from './commands/social.js';
-import { communityCommands } from './commands/community.js';
-import { accountCommands } from './commands/account.js';
 import { broadcastCommands } from './commands/broadcast.js';
 import { uploadImageCommands } from './commands/upload-image.js';
 import { packageJson } from './utils.js';
@@ -35,22 +31,6 @@ program
 program.addCommand(configCommand);
 
 for (const cmd of queryCommands) {
-  program.addCommand(cmd);
-}
-
-for (const cmd of publishCommands) {
-  program.addCommand(cmd);
-}
-
-for (const cmd of socialCommands) {
-  program.addCommand(cmd);
-}
-
-for (const cmd of communityCommands) {
-  program.addCommand(cmd);
-}
-
-for (const cmd of accountCommands) {
   program.addCommand(cmd);
 }
 
