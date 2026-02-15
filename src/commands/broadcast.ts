@@ -73,7 +73,7 @@ const voteCmd = new Command('vote')
   })
 
 const commentCmd = new Command('publish')
-  .description('Create a post or comment')
+  .description('Create or edit a post/comment. Auto-detects edits if permlink already exists.')
   .alias('post')
   .alias('comment')
   .requiredOption('-p, --permlink <string>', 'Permlink for the post/comment')
@@ -196,15 +196,32 @@ const commentCmd = new Command('publish')
       })
     }
 
-    const spinner = ora('Broadcasting comment...').start()
+    const spinner = ora('Checking if this is a new comment or an edit...').start()
     try {
       const client = await getClient()
+
+      // Check if the comment already exists (to detect edits)
+      let isEdit = false
+      try {
+        const existing: any = await client.call('bridge', 'get_post', { author, permlink: options.permlink })
+        const existsResult = existing?.result ?? existing;
+        if (existsResult && (existsResult as any).author === author && (existsResult as any).permlink === options.permlink) {
+          isEdit = true
+          spinner.text = 'Detected existing comment — broadcasting edit...'
+        } else {
+          spinner.text = 'Broadcasting new comment...'
+        }
+      } catch (err) {
+        // Comment doesn't exist yet, treating as new
+        spinner.text = 'Broadcasting new comment...'
+      }
+
       const result: any = await client.broadcast(operations, 'posting')
       if (options.wait) {
         spinner.text = 'Waiting for confirmation...'
         await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
       }
-      spinner.succeed('Comment broadcasted successfully')
+      spinner.succeed(`Comment ${isEdit ? 'updated' : 'created'} successfully`)
       console.log(JSON.stringify(result, null, 2))
     } catch (error: any) {
       spinner.fail(error.message)
@@ -317,6 +334,49 @@ const customJsonCmd = new Command('custom-json')
     }
   })
 
+const deleteCommentCmd = new Command('delete-comment')
+  .description('Delete a comment (only works if comment has received no votes)')
+  .option('-a, --author <name>', 'Author of the comment')
+  .option('-p, --permlink <string>', 'Permlink of the comment')
+  .option('--url <url>', 'Comment URL (PeakD, HiveBlog, Ecency…) — replaces --author and --permlink')
+  .option('--wait', 'Wait for transaction confirmation before exiting')
+  .action(async (options) => {
+    // Resolve author/permlink from --url or explicit flags
+    let author = options.author
+    let permlink = options.permlink
+    if (options.url) {
+      const parsed = parseHiveUrl(options.url)
+      if (!parsed) { console.error(chalk.red('Could not parse --url')); process.exit(1) }
+      author = parsed.author; permlink = parsed.permlink
+    }
+    if (!author || !permlink) {
+      console.error(chalk.red('Provide either --url or both --author and --permlink'))
+      process.exit(1)
+    }
+
+    const operations: HiveOperation[] = [
+      {
+        type: 'delete_comment',
+        value: { author, permlink }
+      }
+    ]
+
+    const spinner = ora('Deleting comment...').start()
+    try {
+      const client = await getClient()
+      const result: any = await client.broadcast(operations, 'posting')
+      if (options.wait) {
+        spinner.text = 'Waiting for confirmation...'
+        await client.waitForTransaction(result?.result?.tx_id ?? result?.tx_id)
+      }
+      spinner.succeed('Comment deleted successfully')
+      console.log(JSON.stringify(result, null, 2))
+    } catch (error: any) {
+      spinner.fail(error.message)
+      process.exit(1)
+    }
+  })
+
 const broadcastCmd = new Command('broadcast')
   .description('Broadcast raw operations')
   .argument('<operations>', 'JSON array of operations')
@@ -341,4 +401,4 @@ const broadcastCmd = new Command('broadcast')
     }
   })
 
-export const broadcastCommands = [voteCmd, commentCmd, transferCmd, customJsonCmd, broadcastCmd]
+export const broadcastCommands = [voteCmd, commentCmd, deleteCommentCmd, transferCmd, customJsonCmd, broadcastCmd]
