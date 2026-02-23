@@ -1,158 +1,162 @@
 # Hive CLI
 
-A command-line interface wrapper for the Hive blockchain API using [hive-tx](https://github.com/mahdiyari/hive-tx) v6.
+A command-line interface for the Hive blockchain API built on [hive-tx](https://github.com/mahdiyari/hive-tx) v6.
 
 ## Features
 
-- **Query Operations**: Get account info, blocks, posts, and make raw API calls
-- **Broadcast Operations**: Vote, comment, transfer, and broadcast custom JSON
-- **Image Uploads**: Upload images to Hive ImageHoster
-- **Secure Configuration**: Store account credentials safely in `~/.hive-tx-cli/config.json` (permissions 600)
-- **Interactive Setup**: Easy configuration with prompts
-- **Node.js 22**: Built for modern Node.js with TypeScript
+- Query account data, balances, blocks, feed posts, replies, RC, and raw API methods.
+- Broadcast common operations: publish, reply, edit, vote, transfer, custom JSON, and raw operations.
+- Social/community actions: follow, unfollow, mute, unmute, reblog, and community subscribe flows.
+- Rewards and profile tools: claim rewards, delegate HP, and update profile metadata.
+- URL-aware commands for content lookup and vote/delete/reply flows.
+- Optional confirmation wait mode for supported broadcasts.
+- Secure config in `~/.hive-tx-cli/config.json` (mode `600`) plus env var overrides.
 
 ## Installation
 
 ```bash
-
 pnpm install -g @peakd/hive-tx-cli
-
+# or
 yarn global add @peakd/hive-tx-cli
-
+# or
 npm install -g @peakd/hive-tx-cli
-
-```
-
-## Devlopment
-
-```bash
-# Clone or download the project
-git clone <repository-url>
-cd hive-tx-cli
-
-# Install dependencies
-pnpm install
-
-# Build the project
-pnpm build
-
-# Link globally (optional)
-pnpm link --global
 ```
 
 ## Quick Start
 
-1. **Configure your account:**
+```bash
+# Interactive configuration
+hive config
 
-   ```bash
-   hive config
-   ```
+# Verify config
+hive status
 
-2. **Check configuration status:**
+# Basic query
+hive account peakd
 
-   ```bash
-   hive status
-   ```
-
-3. **Query an account:**
-   ```bash
-   hive account peakd
-   ```
+# Vote by URL
+hive vote --url https://peakd.com/@author/permlink --weight 100
+```
 
 ## Commands
 
 ### Configuration
 
 ```bash
-# Interactive configuration setup
 hive config
-
-# Show current configuration
 hive config --show
-
-# Set a specific value
 hive config set account myaccount
-hive config set postingKey <your-posting-key>
-
-# Get a specific value
 hive config get account
-
-# Clear all configuration
 hive config --clear
 ```
 
 ### Query Commands
 
 ```bash
-# Get account information
+# Account and balances
 hive account <username>
+hive balance <username>
+hive rc <username>
 
-# Get dynamic global properties
+# Chain state
 hive props
-
-# Get block by number
 hive block <number>
 
-# Get content (post/comment)
+# Content lookup (author/permlink or URL)
 hive content <author> <permlink>
+hive content https://peakd.com/@author/permlink
+hive replies <author> <permlink>
+hive replies https://peakd.com/@author/permlink
+hive feed <account> --limit 10
 
-# Make a raw API call
+# Raw API call
 hive call database_api get_accounts '[["username"]]'
+hive call condenser_api get_content_replies '["author","permlink"]' --raw
 ```
 
 ### Broadcast Commands
 
 ```bash
-# Vote on a post/comment
-hive vote --author <author> --permlink <permlink> --weight 100
+# Publish (aliases: post, comment)
+hive publish --permlink my-post --title "My Post" --body "Content" --tags "hive,cli"
+hive publish --permlink my-post --title "My Post" --body-file ./post.md --metadata '{"app":"hive-tx-cli"}'
+hive publish --permlink my-reply --title "Re" --body "Reply body" --parent-url https://peakd.com/@author/permlink
 
-# Create a post
-hive post --permlink my-post --title "My Post" --body "Content here" --tags "hive,blockchain"
+# Reply/edit/delete
+hive reply <parent-author> <parent-permlink> --body "Nice post" --wait
+hive edit <author> <permlink> --body-file ./updated.md --tags "hive,update"
+hive delete-comment --url https://peakd.com/@author/permlink --wait
 
-# Create a post with custom metadata
-hive post --permlink my-post --title "My Post" --body "Content here" --tags "hive,blockchain" --metadata '{"app":"hive-tx-cli/2026.1.1","format":"markdown"}'
+# Voting and transfers
+hive vote --author <author> --permlink <permlink> --weight 100 --wait
+hive vote --url https://peakd.com/@author/permlink --weight 50
+hive transfer --to <recipient> --amount "1.000 HIVE" --memo "Thanks" --wait
 
-# Create a comment
-hive comment --permlink my-reply --body "Comment text" --parent-author <author> --parent-permlink <permlink>
+# Social actions
+hive follow <account>
+hive unfollow <account>
+hive mute <account>
+hive unmute <account>
+hive reblog --author <author> --permlink <permlink>
 
-# Transfer HIVE or HBD (requires active key)
-hive transfer --to <recipient> --amount "1.000 HIVE" --memo "Thanks!"
+# Community tools
+hive community search peakd
+hive community info hive-12345
+hive community subscribers hive-12345
+hive community subscribe hive-12345
+hive community unsubscribe hive-12345
 
-# Broadcast custom JSON
+# Rewards / profile
+hive claim
+hive delegate <account> "100 HP"
+hive profile update --name "My Name" --about "Hive user"
+
+# Custom JSON and raw broadcast
 hive custom-json --id <app-id> --json '{"key":"value"}'
-
-# Broadcast raw operations
-hive broadcast '["vote",{"voter":"me","author":"you","permlink":"post","weight":10000}]' --key-type posting
+hive custom-json --id <app-id> --json '{"key":"value"}' --required-active myaccount --wait
+hive broadcast '[{"type":"vote","value":{"voter":"me","author":"you","permlink":"post","weight":10000}}]' --key-type posting --wait
 ```
 
 ### Image Upload
 
 ```bash
-# Upload an image (requires posting key)
 hive upload --file ./path/to/image.jpg
-
-# Use a different ImageHoster
-hive upload --file ./image.png --host https://images.ecency.com
-
-# Specify account for this command
-hive upload --file ./image.jpg --account myaccount
+hive upload --file ./path/to/image.jpg --account myaccount
+hive upload --file ./path/to/image.jpg --host https://images.ecency.com
 ```
 
-The command returns JSON with the uploaded image URL.
+Returns JSON with the uploaded image URL.
 
 ## Global Options
 
 ```bash
-# Specify a different Hive node
-hive --node https://api.hive.blog account peakd
-
-# Specify account for this command only
+# Per-command account override
 hive --account myaccount vote --author author --permlink permlink --weight 100
+
+# Per-command node override
+hive --node https://api.hive.blog account peakd
+```
+
+## Environment Variables
+
+Values from env vars override config file values when set.
+
+- `HIVE_ACCOUNT`
+- `HIVE_POSTING_KEY`
+- `HIVE_ACTIVE_KEY`
+- `HIVE_JSON_OUTPUT=1` (disables spinner UI and keeps output machine-friendly)
+
+```bash
+export HIVE_ACCOUNT="your-username"
+export HIVE_POSTING_KEY="your-posting-private-key"
+export HIVE_ACTIVE_KEY="your-active-private-key"
+
+hive vote --author author --permlink permlink --weight 100
 ```
 
 ## Configuration File
 
-Configuration is stored in `~/.hive-tx-cli/config.json` with 600 permissions (read/write only for owner):
+Stored at `~/.hive-tx-cli/config.json`:
 
 ```json
 {
@@ -163,37 +167,15 @@ Configuration is stored in `~/.hive-tx-cli/config.json` with 600 permissions (re
 }
 ```
 
-**Security Note**: Never commit your private keys to version control!
-
-## Environment Variables
-
-You can provide credentials via environment variables instead of the config file. When set, these values take precedence over the file.
-
-- `HIVE_ACCOUNT`
-- `HIVE_POSTING_KEY`
-- `HIVE_ACTIVE_KEY`
-
-Example:
-
-```bash
-export HIVE_ACCOUNT="your-username"
-export HIVE_POSTING_KEY="your-posting-private-key"
-export HIVE_ACTIVE_KEY="your-active-private-key"
-
-hive vote --author author --permlink permlink --weight 100
-```
+Never commit private keys to version control.
 
 ## Development
 
 ```bash
-# Run in development mode
-pnpm dev
-
-# Build for production
+pnpm install
 pnpm build
-
-# Run specific command in dev mode
 pnpm dev -- account peakd
+pnpm start
 ```
 
 ## Dependencies
@@ -207,7 +189,7 @@ pnpm dev -- account peakd
 
 ## Requirements
 
-- Node.js >= 22.0.0
+- Node.js >= 22
 - pnpm (package manager)
 
 ## License
