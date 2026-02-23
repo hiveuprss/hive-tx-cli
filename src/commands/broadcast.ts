@@ -605,7 +605,7 @@ const reblogCommand = new Command('reblog')
     }
   })
 
-const communityCmd = new Command('community')
+const communityCommand = new Command('community')
   .description('Community tools')
 
 const communitySearchCmd = new Command('search')
@@ -772,11 +772,11 @@ const communityUnsubscribeCmd = new Command('unsubscribe')
     }
   })
 
-communityCmd.addCommand(communitySearchCmd)
-communityCmd.addCommand(communityInfoCmd)
-communityCmd.addCommand(communitySubscribeCmd)
-communityCmd.addCommand(communityUnsubscribeCmd)
-communityCmd.addCommand(communitySubscribersCmd)
+communityCommand.addCommand(communitySearchCmd)
+communityCommand.addCommand(communityInfoCmd)
+communityCommand.addCommand(communitySubscribeCmd)
+communityCommand.addCommand(communityUnsubscribeCmd)
+communityCommand.addCommand(communitySubscribersCmd)
 
 const claimCommand = new Command('claim')
   .description('Claim pending rewards')
@@ -1086,7 +1086,7 @@ const transferCommand = new Command('transfer')
     }
   })
 
-const voteCmd = new Command('vote')
+const voteCommand = new Command('vote')
   .description('Vote on a post or comment')
   .option('-a, --author <name>', 'Author of the content')
   .option('-p, --permlink <string>', 'Permlink of the content')
@@ -1149,7 +1149,7 @@ const voteCmd = new Command('vote')
     }
   })
 
-const customJsonCmd = new Command('custom-json')
+const customJsonCommand = new Command('custom-json')
   .description('Broadcast custom JSON operation')
   .requiredOption('-i, --id <string>', 'Operation ID')
   .requiredOption('-j, --json <string>', 'JSON payload')
@@ -1199,7 +1199,7 @@ const customJsonCmd = new Command('custom-json')
     }
   })
 
-const broadcastCmd = new Command('broadcast')
+const broadcastCommand = new Command('broadcast')
   .description('Broadcast raw operations')
   .argument('<operations>', 'JSON array of operations')
   .option('-k, --key-type <type>', 'Key type (posting or active)', 'posting')
@@ -1233,12 +1233,12 @@ export const broadcastCommands = [
   muteCommand,
   unmuteCommand,
   reblogCommand,
-  communityCmd,
+  communityCommand,
   profileCommand,
   claimCommand,
   delegateCommand,
   transferCommand,
-  voteCmd,
-  customJsonCmd,
-  broadcastCmd
+  voteCommand,
+  customJsonCommand,
+  broadcastCommand
 ]
