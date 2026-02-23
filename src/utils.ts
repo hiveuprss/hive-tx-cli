@@ -1,6 +1,10 @@
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import ora from 'ora';
+import chalk from 'chalk';
+import { getConfig } from './config.js';
+import { HiveClient } from './hive-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,20 +38,109 @@ export function getAccountName(config: any, options: any): string {
  * Parse a Hive post/comment URL into { author, permlink }.
  * Supports PeakD, HiveBlog, Ecency, and any URL with /@author/permlink in the path.
  * Returns null if the input is not a recognisable URL.
- *
- * Examples:
- *   https://peakd.com/introduceyourself/@alice/my-post  → { author: 'alice', permlink: 'my-post' }
- *   https://hive.blog/hive-174578/@alice/my-post        → { author: 'alice', permlink: 'my-post' }
- *   https://ecency.com/hive-174578/@alice/my-post       → { author: 'alice', permlink: 'my-post' }
  */
 export function parseHiveUrl(input: string): { author: string; permlink: string } | null {
   if (!input.startsWith('http')) return null;
   try {
     const url = new URL(input);
-    const match = url.pathname.match(/\/@([a-z0-9._-]+)\/([a-z0-9-]+)/);
+    const match = url.pathname.match(/\/\@([a-z0-9._-]+)\/([a-z0-9-]+)/);
     if (match) return { author: match[1]!, permlink: match[2]! };
   } catch {
     // not a valid URL
   }
   return null;
+}
+
+export function isJsonMode(): boolean {
+  return process.env.HIVE_JSON_OUTPUT === '1';
+}
+
+export function createSpinner(text: string) {
+  if (isJsonMode()) {
+    const noop = {
+      text: '',
+      start: () => noop,
+      succeed: () => {},
+      fail: () => {},
+      stop: () => {}
+    };
+    return noop;
+  }
+  return ora(text);
+}
+
+export async function getClient(options: { requireConfig?: boolean } = {}): Promise<HiveClient> {
+  const config = await getConfig();
+  const requireConfig = options.requireConfig !== false;
+
+  if (!config && requireConfig) {
+    console.error(chalk.red('Configuration not found. Run "hive config" or set HIVE_ACCOUNT and key env vars.'));
+    process.exit(1);
+  }
+
+  return new HiveClient(config || { account: '' });
+}
+
+export function parseMetadata(raw: unknown): Record<string, unknown> {
+  if (!raw) {
+    return {};
+  }
+
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  if (typeof raw === 'object') {
+    return raw as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+export function parseTags(tags: string | undefined): string[] {
+  if (!tags) {
+    return [];
+  }
+
+  return tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+}
+
+export function unwrapResult<T>(result: any): T {
+  return (result && typeof result === 'object' && 'result' in result)
+    ? (result as any).result
+    : result;
+}
+
+export function parseAssetAmount(amount: any): number {
+  if (typeof amount === 'number') {
+    return amount;
+  }
+
+  if (amount && typeof amount === 'object' && 'amount' in amount) {
+    const numeric = parseFloat(String((amount as any).amount));
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  if (!amount) {
+    return 0;
+  }
+
+  const numeric = parseFloat(String(amount).split(' ')[0] ?? '0');
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export function hpToVests(hp: number, props: any): string {
+  const totalVestingFundHive = parseAssetAmount(props.total_vesting_fund_hive);
+  const totalVestingShares = parseAssetAmount(props.total_vesting_shares);
+
+  if (!totalVestingFundHive || !totalVestingShares) {
+    return '0.000000 VESTS';
+  }
+
+  const vests = (hp * totalVestingShares) / totalVestingFundHive;
+  return `${vests.toFixed(6)} VESTS`;
 }
