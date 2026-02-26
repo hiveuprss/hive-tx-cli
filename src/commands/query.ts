@@ -176,4 +176,81 @@ const rcCmd = new Command('rc')
     }
   });
 
-export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd, repliesCmd, rcCmd];
+const historyCmd = new Command('history')
+  .description('Show account operation history')
+  .argument('<name>', 'Account name')
+  .option('-l, --limit <n>', 'Number of operations to fetch', '20')
+  .option('-s, --start <n>', 'Start from sequence number (-1 = most recent)', '-1')
+  .option('-f, --filter <type>', 'Filter by operation type (e.g. custom_json, comment, vote, transfer)')
+  .option('--json', 'Output raw JSON instead of formatted text')
+  .action(async (name: string, options) => {
+    const limit = parseInt(options.limit, 10);
+    const start = parseInt(options.start, 10);
+    const spinner = ora(`Fetching history for @${name}...`).start();
+    try {
+      const client = await getClient();
+      const raw: any = await client.call('condenser_api', 'get_account_history', [name, start, limit]);
+      spinner.stop();
+
+      // condenser_api returns [[seq, tx_info], ...] — unwrap result envelope if present
+      const entries: [number, any][] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.result)
+        ? raw.result
+        : [];
+
+      const filtered = options.filter
+        ? entries.filter(([, tx]) => tx?.op?.[0] === options.filter)
+        : entries;
+
+      if (options.json) {
+        console.log(JSON.stringify(filtered, null, 2));
+        return;
+      }
+
+      if (filtered.length === 0) {
+        console.log(`No operations found${options.filter ? ` matching type '${options.filter}'` : ''}.`);
+        return;
+      }
+
+      for (const [seq, tx] of [...filtered].reverse()) {
+        const [opType, opData] = tx.op ?? [];
+        const ts = tx.timestamp ?? '';
+        let detail = '';
+
+        switch (opType) {
+          case 'comment':
+            if (opData.parent_author === '') {
+              detail = `post  "${(opData.title ?? '').slice(0, 60)}"`;
+            } else {
+              detail = `reply to @${opData.parent_author}/${opData.parent_permlink}`;
+            }
+            break;
+          case 'vote':
+            detail = `${opData.weight > 0 ? '+' : ''}${opData.weight / 100}% on @${opData.author}/${opData.permlink}`;
+            break;
+          case 'transfer':
+            detail = `${opData.amount} → @${opData.to}  memo: ${(opData.memo ?? '').slice(0, 60)}`;
+            break;
+          case 'custom_json':
+            detail = `id=${opData.id}  ${(opData.json ?? '').slice(0, 80)}`;
+            break;
+          case 'claim_reward_balance':
+            detail = `${opData.reward_hive} ${opData.reward_hbd} ${opData.reward_vests}`;
+            break;
+          case 'delegate_vesting_shares':
+            detail = `→ @${opData.delegatee}  ${opData.vesting_shares}`;
+            break;
+          default:
+            detail = JSON.stringify(opData).slice(0, 100);
+        }
+
+        console.log(`#${String(seq).padStart(6)}  ${ts}  ${(opType ?? '').padEnd(22)}  ${detail}`);
+      }
+    } catch (error: any) {
+      spinner.fail(error.message);
+      process.exit(1);
+    }
+  });
+
+export const queryCommands = [accountCmd, dynamicGlobalPropsCmd, blockCmd, contentCmd, callCmd, repliesCmd, rcCmd, historyCmd];

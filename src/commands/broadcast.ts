@@ -8,6 +8,34 @@ import { HiveClient } from '../hive-client.js'
 import type { HiveOperation } from '../types.js'
 import { getAccountName, parseHiveUrl } from '../utils.js'
 
+// Helper to read content from file or stdin
+async function readContent(source: string | undefined): Promise<string> {
+  if (!source) return ''
+
+  if (source === '-') {
+    // Read from stdin
+    return new Promise((resolve, reject) => {
+      let data = ''
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('readable', () => {
+        let chunk
+        while ((chunk = process.stdin.read()) !== null) {
+          data += chunk
+        }
+      })
+      process.stdin.on('end', () => resolve(data))
+      process.stdin.on('error', reject)
+    })
+  } else {
+    // Read from file
+    try {
+      return readFileSync(source, 'utf8')
+    } catch (error: any) {
+      throw new Error(`Could not read file: ${error.message}`)
+    }
+  }
+}
+
 async function getClient(): Promise<HiveClient> {
   const config = await getConfig()
   if (!config) {
@@ -79,7 +107,7 @@ const commentCmd = new Command('publish')
   .requiredOption('-p, --permlink <string>', 'Permlink for the post/comment')
   .option('-t, --title <string>', 'Title (for posts; defaults to "" for replies)', '')
   .option('-b, --body <string>', 'Content body')
-  .option('--body-file <path>', 'Read content body from a file (avoids shell quoting issues)')
+  .option('--body-file <path>', 'Read content body from a file or stdin (use "-" for stdin; avoids shell quoting issues)')
   .option('--parent-author <name>', 'Parent author (for comments)', '')
   .option('--parent-permlink <string>', 'Parent permlink (for comments)', '')
   .option('--parent-url <url>', 'Parent post/comment URL — replaces --parent-author and --parent-permlink')
@@ -106,19 +134,19 @@ const commentCmd = new Command('publish')
       options.parentPermlink = parsed.permlink
     }
 
-    // Resolve body from --body or --body-file
+    // Resolve body from --body, --body-file, or stdin
     let body: string
-    if (options.bodyFile) {
-      try {
-        body = readFileSync(options.bodyFile, 'utf8')
-      } catch (error: any) {
-        console.error(chalk.red(`Could not read body file: ${error.message}`))
+    try {
+      if (options.bodyFile) {
+        body = await readContent(options.bodyFile)
+      } else if (options.body) {
+        body = options.body
+      } else {
+        console.error(chalk.red('Either --body or --body-file is required'))
         process.exit(1)
       }
-    } else if (options.body) {
-      body = options.body
-    } else {
-      console.error(chalk.red('Either --body or --body-file is required'))
+    } catch (error: any) {
+      console.error(chalk.red(`Error reading body: ${error.message}`))
       process.exit(1)
     }
 
@@ -234,6 +262,7 @@ const transferCmd = new Command('transfer')
   .requiredOption('-t, --to <name>', 'Recipient account')
   .requiredOption('-a, --amount <string>', 'Amount (e.g., "1.000 HIVE")')
   .option('-m, --memo <string>', 'Transfer memo', '')
+  .option('--memo-file <path>', 'Read transfer memo from a file or stdin (use "-" for stdin)')
   .option('--account <name>', 'Sender account name (defaults to configured account)')
   .option('--wait', 'Wait for transaction confirmation before exiting')
   .action(async (options) => {
@@ -261,6 +290,21 @@ const transferCmd = new Command('transfer')
       }
     }
 
+    // Resolve memo from --memo or --memo-file
+    let memo: string
+    try {
+      if (options.memoFile) {
+        memo = await readContent(options.memoFile)
+      } else if (options.memo) {
+        memo = options.memo
+      } else {
+        memo = ''
+      }
+    } catch (error: any) {
+      console.error(chalk.red(`Error reading memo: ${error.message}`))
+      process.exit(1)
+    }
+
     const operations: HiveOperation[] = [
       {
         type: 'transfer',
@@ -268,7 +312,7 @@ const transferCmd = new Command('transfer')
           from,
           to: options.to,
           amount: options.amount,
-          memo: options.memo
+          memo: memo
         }
       }
     ]
@@ -292,7 +336,8 @@ const transferCmd = new Command('transfer')
 const customJsonCmd = new Command('custom-json')
   .description('Broadcast custom JSON operation')
   .requiredOption('-i, --id <string>', 'Operation ID')
-  .requiredOption('-j, --json <string>', 'JSON payload')
+  .option('-j, --json <string>', 'JSON payload')
+  .option('--json-file <path>', 'Read JSON payload from a file or stdin (use "-" for stdin)')
   .option('--required-posting <accounts>', 'Required posting auths (comma-separated)', '')
   .option('--required-active <accounts>', 'Required active auths (comma-separated)', '')
   .option('--account <name>', 'Account name (defaults to configured account)')
@@ -302,6 +347,22 @@ const customJsonCmd = new Command('custom-json')
 
     if (!account) {
       console.error(chalk.red('Account not specified. Use --account, HIVE_ACCOUNT, or configure with "hive config"'))
+      process.exit(1)
+    }
+
+    // Resolve JSON from --json or --json-file
+    let json: string
+    try {
+      if (options.jsonFile) {
+        json = await readContent(options.jsonFile)
+      } else if (options.json) {
+        json = options.json
+      } else {
+        console.error(chalk.red('Either --json or --json-file is required'))
+        process.exit(1)
+      }
+    } catch (error: any) {
+      console.error(chalk.red(`Error reading JSON: ${error.message}`))
       process.exit(1)
     }
 
@@ -316,7 +377,7 @@ const customJsonCmd = new Command('custom-json')
           required_auths: requiredAuths,
           required_posting_auths: requiredPostingAuths,
           id: options.id,
-          json: options.json
+          json: json
         }
       }
     ]
